@@ -1,8 +1,6 @@
 name: Import PlantMind modular app
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -18,9 +16,10 @@ jobs:
   import:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout pull request branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
 
       - name: Reconstruct and import modular application
@@ -45,11 +44,20 @@ jobs:
           echo "6bcaa558b6469c4011e7d9af6e5a192a0bd6d2304972cea75fcc5575aab95799  /tmp/PlantMind.zip" | sha256sum --check
           unzip -t /tmp/PlantMind.zip
 
+          cp -a .github /tmp/github-workflows
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           unzip -q /tmp/PlantMind.zip -d .
+          rm -rf .github
+          cp -a /tmp/github-workflows .github
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+
+          if git diff --cached --quiet; then
+            echo "The modular application is already imported on this branch."
+            exit 0
+          fi
+
           git commit -m "Import modular PlantMind application"
-          git push origin HEAD:main
+          git push origin HEAD:${{ github.head_ref }}
