@@ -1,63 +1,29 @@
-name: Import PlantMind modular app
+name: Build PlantMind
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-concurrency:
-  group: plantmind-modular-import
-  cancel-in-progress: true
 
 jobs:
-  import:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout pull request branch
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
+          node-version: 22
+          cache: npm
 
-      - name: Reconstruct and import modular application
-        shell: bash
-        run: |
-          git fetch origin claude-modular-update:refs/remotes/origin/claude-modular-update
-          : > /tmp/PlantMind.b64
+      - name: Install dependencies
+        run: npm ci
 
-          for part in \
-            part01 part02 part03 part04 part05 part06 part07 \
-            part08a part08b part09a part09b part10a part10b \
-            part11a part11b part12a part12b part13a part13b \
-            part14a part14b
-          do
-            git show "origin/claude-modular-update:.plantmind-import/${part}.b64" >> /tmp/PlantMind.b64
-          done
+      - name: Build
+        run: npm run build
 
-          test "$(wc -c < /tmp/PlantMind.b64)" -eq 135756
-          echo "8f9efb4437152bfaf473a092e1242d5587c01773b1442fd35f2f6591f0a67778  /tmp/PlantMind.b64" | sha256sum --check
-
-          base64 --decode /tmp/PlantMind.b64 > /tmp/PlantMind.zip
-          echo "6bcaa558b6469c4011e7d9af6e5a192a0bd6d2304972cea75fcc5575aab95799  /tmp/PlantMind.zip" | sha256sum --check
-          unzip -t /tmp/PlantMind.zip
-
-          cp -a .github /tmp/github-workflows
-          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          unzip -q /tmp/PlantMind.zip -d .
-          rm -rf .github
-          cp -a /tmp/github-workflows .github
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-
-          if git diff --cached --quiet; then
-            echo "The modular application is already imported on this branch."
-            exit 0
-          fi
-
-          git commit -m "Import modular PlantMind application"
-          git push origin HEAD:${{ github.head_ref }}
+      - name: Test recommendation engine
+        run: npm test
