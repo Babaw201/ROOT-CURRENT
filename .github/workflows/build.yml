@@ -3,6 +3,7 @@ name: Import PlantMind modular app
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -20,43 +21,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Wait until all archive parts are present
-        id: ready
+      - name: Reconstruct and import modular application
         shell: bash
         run: |
-          files=(
-            src/App.tsx
-            src/main.tsx
-            src/index.css
-            package.json
-            vite.config.ts
-            .github/workflows/deploy-pages.yml
-          )
-          for i in "${!files[@]}"; do
-            expected="PMZIP-PART-$((i + 1))"
-            actual="$(head -n 1 "${files[$i]}" 2>/dev/null || true)"
-            if [ "$actual" != "$expected" ]; then
-              echo "ready=false" >> "$GITHUB_OUTPUT"
-              echo "Archive part $((i + 1)) is not ready yet."
-              exit 0
-            fi
-          done
-          echo "ready=true" >> "$GITHUB_OUTPUT"
+          git fetch origin claude-modular-update:refs/remotes/origin/claude-modular-update
+          : > /tmp/PlantMind.b64
 
-      - name: Reconstruct and import the modular application
-        if: steps.ready.outputs.ready == 'true'
-        shell: bash
-        run: |
-          {
-            tail -n +2 src/App.tsx
-            tail -n +2 src/main.tsx
-            tail -n +2 src/index.css
-            tail -n +2 package.json
-            tail -n +2 vite.config.ts
-            tail -n +2 .github/workflows/deploy-pages.yml
-          } | tr -d '\n\r' > /tmp/PlantMind.b64
+          for part in \
+            part01 part02 part03 part04 part05 part06 part07 \
+            part08a part08b part09a part09b part10a part10b \
+            part11a part11b part12a part12b part13a part13b \
+            part14a part14b
+          do
+            git show "origin/claude-modular-update:.plantmind-import/${part}.b64" >> /tmp/PlantMind.b64
+          done
+
+          test "$(wc -c < /tmp/PlantMind.b64)" -eq 135756
+          echo "8f9efb4437152bfaf473a092e1242d5587c01773b1442fd35f2f6591f0a67778  /tmp/PlantMind.b64" | sha256sum --check
 
           base64 --decode /tmp/PlantMind.b64 > /tmp/PlantMind.zip
+          echo "6bcaa558b6469c4011e7d9af6e5a192a0bd6d2304972cea75fcc5575aab95799  /tmp/PlantMind.zip" | sha256sum --check
           unzip -t /tmp/PlantMind.zip
 
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
@@ -65,5 +49,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Import modular PlantMind application [skip ci]"
+          git commit -m "Import modular PlantMind application"
           git push origin main
